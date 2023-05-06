@@ -16,10 +16,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.annotations.Delete;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/setmeal")
@@ -35,7 +37,8 @@ public class SetmealController {
     @Autowired
     private CategoryService categoryService;
 
-
+    @Autowired
+    private RedisTemplate redisTemplate;
     /**
      * 新增套餐
      */
@@ -48,6 +51,10 @@ public class SetmealController {
             setmealDish.setSetmealId(setmealDto.getId());
         }
         setmealDishService.saveBatch(setmealDishes);
+        //清理某个分类下的菜品缓存
+        String keys="set_meal_"+setmealDto.getCategoryId()+"_1";
+        redisTemplate.delete(keys);
+
         return R.success("新增套餐成功");
     }
 
@@ -105,6 +112,9 @@ public class SetmealController {
                 setmeal.setStatus(1);
             }
             setMealService.updateById(setmeal);
+            //清理某个分类下的菜品缓存
+            String keys="set_meal_"+setmeal.getCategoryId()+"_1";
+            redisTemplate.delete(keys);
         }
         return R.success("修改套餐售卖状态成功");
     }
@@ -145,6 +155,9 @@ public class SetmealController {
             setmealDish.setSetmealId(setmealDto.getId());
             setmealDishService.save(setmealDish);//再把新的菜品加进去
         }
+        //清理某个分类下的菜品缓存
+        String keys="set_meal_"+setmealDto.getCategoryId()+"_1";
+        redisTemplate.delete(keys);
         return R.success("修改套餐成功");
     }
 
@@ -153,11 +166,18 @@ public class SetmealController {
      */
     @GetMapping("/list")
     public R<List<Setmeal>> list(Setmeal setmeal){
+        List<Setmeal> list=null;
+        String key="set_meal_"+setmeal.getCategoryId()+"_"+setmeal.getStatus();
+        list= (List<Setmeal>) redisTemplate.opsForValue().get(key);
+        if(list!=null){
+            return R.success(list);
+        }
         LambdaQueryWrapper<Setmeal> queryWrapper=new LambdaQueryWrapper<>();
         queryWrapper.eq(setmeal.getCategoryId()!=null,Setmeal::getCategoryId,setmeal.getCategoryId());
         queryWrapper.eq(setmeal.getStatus()!=null,Setmeal::getStatus,setmeal.getStatus());
         queryWrapper.orderByDesc(Setmeal::getUpdateTime);
-        List<Setmeal> list = setMealService.list(queryWrapper);
+        list = setMealService.list(queryWrapper);
+        redisTemplate.opsForValue().set(key,list,60, TimeUnit.MINUTES);
         return R.success(list);
     }
 

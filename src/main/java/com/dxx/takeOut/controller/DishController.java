@@ -12,12 +12,14 @@ import com.dxx.takeOut.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 菜品管理
@@ -32,6 +34,8 @@ public class DishController {
     private CategoryService categoryService;
     @Autowired
     private DishFlavorService dishFlavorService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 新增菜品
@@ -40,6 +44,10 @@ public class DishController {
     @PostMapping
     public R<String> save(@RequestBody DishDto dishDto){
         dishService.saveWithFlavor(dishDto);
+        //清理某个分类下的菜品缓存
+        String keys="dish_"+dishDto.getCategoryId()+"_1";
+        redisTemplate.delete(keys);
+
         return R.success("新增菜品成功");
     }
 
@@ -124,6 +132,11 @@ public class DishController {
 
         //更新dish表
         dishService.updateById(dishDto);  //因为dishDto继承了dish，所以直接传dishDto没问题
+
+        //清理某个分类下的菜品缓存
+        String keys="dish_"+dishDto.getCategoryId()+"_1";
+        redisTemplate.delete(keys);
+
         return R.success("修改菜品成功");
     }
 
@@ -134,6 +147,7 @@ public class DishController {
     public R<String> updateStatus(@PathVariable int s, Long[] ids){
         for (Long id : ids) {
             Dish dish = dishService.getById(id);
+            int status=dish.getStatus();
             if(s==0){
                 dish.setStatus(0);
             }
@@ -141,6 +155,9 @@ public class DishController {
                 dish.setStatus(1);
             }
             dishService.updateById(dish);
+            //清理某个分类下的菜品缓存
+            String keys="dish_"+dish.getCategoryId()+"_"+status;
+            redisTemplate.delete(keys);
         }
 
         return R.success("修改售卖状态成功");
@@ -151,6 +168,11 @@ public class DishController {
     @DeleteMapping
     public R<String> delete(Long[] ids){
         for (Long id : ids) {
+            Dish dish = dishService.getById(id);
+            //清理某个分类下的菜品缓存
+            String keys="dish_"+dish.getCategoryId()+"_1";
+            redisTemplate.delete(keys);
+
             LambdaQueryWrapper<Dish> queryWrapper=new LambdaQueryWrapper();
             queryWrapper.eq(Dish::getId,id);
             dishService.remove(queryWrapper);
@@ -164,6 +186,16 @@ public class DishController {
      */
     @GetMapping("/list")
     public R<List<DishDto>> list(Dish dish){  //传过来的参数虽然只是categoryId，但是用dish对象来接收条件，更具有普适性
+        List<DishDto> dtoList = null;
+        String key = "dish_"+dish.getCategoryId()+"_1";
+        //先从redis中获取缓存数据
+        redisTemplate.opsForValue().get(key);
+        //如果存在，直接返回数据，无需查询数据库
+        dtoList = (List<DishDto>) redisTemplate.opsForValue().get(key);
+        if(dtoList!=null){
+            return R.success(dtoList);
+        }
+
         LambdaQueryWrapper<Dish> queryWrapper=new LambdaQueryWrapper<>();
         //categoryId根据菜品类别查
         queryWrapper.eq(dish.getCategoryId()!=null,Dish::getCategoryId,dish.getCategoryId());
@@ -176,7 +208,7 @@ public class DishController {
         queryWrapper.orderByAsc(Dish::getSort).orderByDesc(Dish::getUpdateTime);
         List<Dish> list = dishService.list(queryWrapper);
 
-        List<DishDto> dtoList = new ArrayList<>();
+        dtoList = new ArrayList<>();
         //把查到的dish list改造成dishDto list，加上口味以及类名
         for (Dish d : list) {
             DishDto dto=new DishDto();
@@ -192,23 +224,9 @@ public class DishController {
             dto.setFlavors(flavors);
             dtoList.add(dto);
         }
+        //缓存里不存在当前类别，需要查询数据库，将查询到的菜品数据缓存到redis
+        redisTemplate.opsForValue().set(key,dtoList,60, TimeUnit.MINUTES);
         return R.success(dtoList);
     }
 
-//    @GetMapping("/list")
-//    public R<List<Dish>> list(Dish dish){  //传过来的参数虽然只是categoryId，但是用dish对象来接收条件，更具有普适性
-//        LambdaQueryWrapper<Dish> queryWrapper=new LambdaQueryWrapper<>();
-//        //categoryId根据菜品类别查
-//        queryWrapper.eq(dish.getCategoryId()!=null,Dish::getCategoryId,dish.getCategoryId());
-//        //只查状态是1的，正在售卖的
-//        queryWrapper.eq(Dish::getStatus,1);
-//        //根据菜品名搜
-//        queryWrapper.like(dish.getName()!=null,Dish::getName,dish.getName());
-//
-//        //添加排序条件
-//        queryWrapper.orderByAsc(Dish::getSort).orderByDesc(Dish::getUpdateTime);
-//        List<Dish> list = dishService.list(queryWrapper);
-//
-//        return R.success(list);
-//    }
 }
