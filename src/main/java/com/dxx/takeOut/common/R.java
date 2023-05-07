@@ -1,11 +1,13 @@
 package com.dxx.takeOut.common;
 
 import lombok.Data;
+
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 //通用的结果返回类，controller把所有的请求都包装成一个R类对象
 @Data
-public class R<T> {
+public class R<T> implements Serializable {
 
     private Integer code; //编码：1成功，0和其它数字为失败
 
