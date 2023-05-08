@@ -3,6 +3,9 @@ server:
 spring:
   application:
     name: take_out_system
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
 #  datasource:
 #    druid:
 #      driver-class-name: com.mysql.cj.jdbc.Driver

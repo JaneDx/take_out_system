@@ -33,7 +33,11 @@ public class LoginCheckFilter implements Filter {
                 "/backend/**", //静态资源
                 "/front/**" , //移动端静态资源
                 "/user/login",//移动端登陆
-                "/user/sendMsg"//移动端发送短信
+                "/user/sendMsg",//移动端发送短信
+                "/doc.html",
+                "/webjars/**",
+                "/swagger-resources",
+                "/v2/api-docs"
         };
         //2.判断本次请求是否需要处理
         boolean check = check(requestURI, urls);
