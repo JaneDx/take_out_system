@@ -4,13 +4,13 @@
 
 - 后台管理：http://localhost:8080/backend/index.html
 
-  ![1](images\1.png)
+  ![1](https://github.com/JaneDx/take_out_system/blob/main/images/1.png)
 
-  ![1](images\3.png)
+  ![1](https://github.com/JaneDx/take_out_system/blob/main/images/3.png)
 
 - 前端页面：http://localhost:8080/front/index.html
 
-  ![2](images\2.png)
+  ![2](https://github.com/JaneDx/take_out_system/blob/main/images/2.png)
 
 
 
